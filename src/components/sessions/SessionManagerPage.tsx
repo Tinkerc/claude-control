@@ -4,6 +4,7 @@ import { useBackendSessionSearch } from "@/hooks/useBackendSessionSearch";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
+  BarChart3,
   Copy,
   RefreshCw,
   Search,
@@ -38,6 +39,7 @@ import { SessionItem } from "./SessionItem";
 import { SessionMessageItem } from "./SessionMessageItem";
 import { SessionTocDialog, SessionTocSidebar } from "./SessionToc";
 import { SessionSearchBar } from "./SessionSearchBar";
+import { InsightsTab } from "./InsightsTab";
 import {
   formatSessionTitle,
   formatTimestamp,
@@ -57,6 +59,8 @@ type ProviderFilter =
   | "openclaw"
   | "gemini";
 
+type TabMode = "sessions" | "insights";
+
 export function SessionManagerPage({ appId }: { appId: string }) {
   const { t } = useTranslation();
   const { data, isLoading, refetch } = useSessionsQuery();
@@ -71,6 +75,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [tabMode, setTabMode] = useState<TabMode>("sessions");
 
   const [search, setSearch] = useState("");
   const [providerFilter, setProviderFilter] = useState<ProviderFilter>(
@@ -227,9 +232,34 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   return (
     <TooltipProvider>
       <div className="mx-auto px-4 sm:px-6 flex flex-col h-[calc(100vh-8rem)]">
+        {/* Tab Selector */}
+        <div className="flex items-center gap-1 border-b">
+          <Button
+            variant={tabMode === "sessions" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setTabMode("sessions")}
+            className="gap-1.5"
+          >
+            <MessageSquare className="size-3.5" />
+            {t("sessionManager.sessionsTab", { defaultValue: "Sessions" })}
+          </Button>
+          <Button
+            variant={tabMode === "insights" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setTabMode("insights")}
+            className="gap-1.5"
+          >
+            <BarChart3 className="size-3.5" />
+            {t("sessionManager.insightsTab", { defaultValue: "Insights" })}
+          </Button>
+        </div>
+
         <div className="flex-1 overflow-hidden flex flex-col gap-4">
-          {/* 主内容区域 - 左右分栏 */}
-          <div className="flex-1 overflow-hidden grid gap-4 md:grid-cols-[320px_1fr]">
+          {/* Sessions Tab Content */}
+          {tabMode === "sessions" && (
+            <>
+              {/* 主内容区域 - 左右分栏 */}
+              <div className="flex-1 overflow-hidden grid gap-4 md:grid-cols-[320px_1fr]">
             {/* 左侧会话列表 */}
             <Card className="flex flex-col overflow-hidden">
               <CardHeader className="py-2 px-3 border-b">
@@ -669,6 +699,15 @@ export function SessionManagerPage({ appId }: { appId: string }) {
               )}
             </Card>
           </div>
+            </>
+          )}
+
+          {/* Insights Tab Content */}
+          {tabMode === "insights" && (
+            <div className="flex-1 overflow-hidden">
+              <InsightsTab />
+            </div>
+          )}
         </div>
       </div>
     </TooltipProvider>

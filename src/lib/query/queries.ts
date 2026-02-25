@@ -16,6 +16,11 @@ import type {
   UsageResult,
   SessionMeta,
   SessionMessage,
+  ProjectStats,
+  WorkflowPatterns,
+  ContentAnalysis,
+  SimilarSession,
+  AllInsights,
 } from "@/types";
 
 const sortProviders = (
@@ -150,5 +155,50 @@ export const useSessionMessagesQuery = (
     queryFn: async () => sessionsApi.getMessages(providerId!, sourcePath!),
     enabled: Boolean(providerId && sourcePath),
     staleTime: 30 * 1000,
+  });
+};
+
+// Insights queries
+export const useProjectStatsQuery = (projectDir?: string) => {
+  return useQuery<ProjectStats[]>({
+    queryKey: ["insights", "projectStats", projectDir],
+    queryFn: async () => sessionsApi.getProjectStats(projectDir),
+    staleTime: 60 * 1000,
+  });
+};
+
+export const useWorkflowPatternsQuery = (projectDir?: string) => {
+  return useQuery<WorkflowPatterns>({
+    queryKey: ["insights", "workflowPatterns", projectDir],
+    queryFn: async () => sessionsApi.getWorkflowPatterns(projectDir),
+    staleTime: 60 * 1000,
+  });
+};
+
+export const useContentAnalysisQuery = (projectDir?: string) => {
+  return useQuery<ContentAnalysis>({
+    queryKey: ["insights", "contentAnalysis", projectDir],
+    queryFn: async () => sessionsApi.getContentAnalysis(projectDir),
+    staleTime: 60 * 1000,
+  });
+};
+
+export const useSimilarSessionsQuery = (
+  sessionId?: string,
+  limit?: number,
+) => {
+  return useQuery<SimilarSession[]>({
+    queryKey: ["insights", "similarSessions", sessionId, limit],
+    queryFn: async () => sessionsApi.findSimilarSessions(sessionId!, limit),
+    enabled: Boolean(sessionId),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const useAllInsightsQuery = (projectDir?: string) => {
+  return useQuery<AllInsights>({
+    queryKey: ["insights", "all", projectDir],
+    queryFn: async () => sessionsApi.getAllInsights(projectDir),
+    staleTime: 60 * 1000,
   });
 };

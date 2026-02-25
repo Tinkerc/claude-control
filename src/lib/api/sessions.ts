@@ -1,5 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { SessionMessage, SessionMeta } from "@/types";
+import type {
+  SessionMessage,
+  SessionMeta,
+  ProjectStats,
+  WorkflowPatterns,
+  ContentAnalysis,
+  SimilarSession,
+  AllInsights,
+} from "@/types";
 
 export interface SessionSearchQuery {
   keyword?: string;
@@ -47,5 +55,26 @@ export const sessionsApi = {
 
   async search(query: SessionSearchQuery): Promise<SessionSearchResult> {
     return await invoke("search_sessions", { query });
+  },
+
+  // Insights API methods
+  async getProjectStats(projectDir?: string): Promise<ProjectStats[]> {
+    return await invoke("get_project_stats", { projectDir });
+  },
+
+  async getWorkflowPatterns(projectDir?: string): Promise<WorkflowPatterns> {
+    return await invoke("get_workflow_patterns", { projectDir });
+  },
+
+  async getContentAnalysis(projectDir?: string): Promise<ContentAnalysis> {
+    return await invoke("get_content_analysis", { projectDir });
+  },
+
+  async findSimilarSessions(sessionId: string, limit?: number): Promise<SimilarSession[]> {
+    return await invoke("find_similar_sessions", { sessionId, limit });
+  },
+
+  async getAllInsights(projectDir?: string): Promise<AllInsights> {
+    return await invoke("get_all_insights", { projectDir });
   },
 };
