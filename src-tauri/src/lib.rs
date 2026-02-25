@@ -1002,6 +1002,7 @@ pub fn run() {
             commands::list_sessions,
             commands::get_session_messages,
             commands::launch_session_terminal,
+            commands::search_sessions,
             commands::get_tool_versions,
             // Provider terminal
             commands::open_provider_terminal,

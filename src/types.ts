@@ -274,6 +274,24 @@ export interface Settings {
   preferredTerminal?: string;
 }
 
+export interface TokenUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+export interface SessionStats {
+  durationMinutes?: number;
+  messageCount?: number;
+  userMessageCount?: number;
+  assistantMessageCount?: number;
+  toolsUsed?: string[];
+  filesModified?: string[];
+  commandsExecuted?: string[];
+  tokenUsage?: TokenUsage;
+  model?: string;
+  topic?: string;
+}
+
 export interface SessionMeta {
   providerId: string;
   sessionId: string;
@@ -284,12 +302,32 @@ export interface SessionMeta {
   lastActiveAt?: number;
   sourcePath?: string;
   resumeCommand?: string;
+  stats?: SessionStats;
 }
 
 export interface SessionMessage {
   role: string;
   content: string;
   ts?: number;
+}
+
+export interface SessionSearchQuery {
+  keyword?: string;
+  files?: string;
+  commands?: string;
+  tools?: string;
+  project?: string;
+  provider?: string;
+  startTime?: number;
+  endTime?: number;
+}
+
+export interface SessionSearchResult {
+  sessions: SessionMeta[];
+  total: number;
+  matchedFiles?: string[];
+  matchedCommands?: string[];
+  matchedTools?: string[];
 }
 
 // MCP 服务器连接参数（宽松：允许扩展字段）

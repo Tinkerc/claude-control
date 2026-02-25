@@ -15,6 +15,7 @@ import {
   getProviderLabel,
   getSessionKey,
 } from "./utils";
+import { SessionStatsBadge } from "./SessionStatsBadge";
 
 interface SessionItemProps {
   session: SessionMeta;
@@ -73,6 +74,8 @@ export function SessionItem({
           {lastActive ? formatRelativeTime(lastActive, t) : t("common.unknown")}
         </span>
       </div>
+
+      <SessionStatsBadge stats={session.stats} />
     </button>
   );
 }

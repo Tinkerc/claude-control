@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSessionSearch } from "@/hooks/useSessionSearch";
+import { useBackendSessionSearch } from "@/hooks/useBackendSessionSearch";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -10,12 +11,11 @@ import {
   MessageSquare,
   Clock,
   FolderOpen,
-  X,
+  Calendar,
 } from "lucide-react";
 import { useSessionMessagesQuery, useSessionsQuery } from "@/lib/query";
 import { sessionsApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -37,6 +37,7 @@ import { ProviderIcon } from "@/components/ProviderIcon";
 import { SessionItem } from "./SessionItem";
 import { SessionMessageItem } from "./SessionMessageItem";
 import { SessionTocDialog, SessionTocSidebar } from "./SessionToc";
+import { SessionSearchBar } from "./SessionSearchBar";
 import {
   formatSessionTitle,
   formatTimestamp,
@@ -44,7 +45,9 @@ import {
   getProviderIconName,
   getProviderLabel,
   getSessionKey,
+  groupSessionsByDate,
 } from "./utils";
+import type { SessionSearchQuery } from "@/types";
 
 type ProviderFilter =
   | "all"
@@ -66,6 +69,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   );
   const [tocDialogOpen, setTocDialogOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAdvancedSearch, setIsAdvancedSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const [search, setSearch] = useState("");
@@ -74,15 +78,36 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   );
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
-  // 使用 FlexSearch 全文搜索
+  // Frontend search (FlexSearch for metadata)
   const { search: searchSessions } = useSessionSearch({
     sessions,
     providerFilter,
   });
 
+  // Backend search (files, commands, tools)
+  const {
+    search: searchBackend,
+    result: backendSearchResult,
+    isLoading: isBackendSearching,
+    reset: resetBackendSearch,
+  } = useBackendSessionSearch();
+
+  // Determine which search to use based on query type
   const filteredSessions = useMemo(() => {
+    // If using advanced search (backend), use backend results
+    if (isAdvancedSearch && backendSearchResult) {
+      let resultSessions = backendSearchResult.sessions;
+      // Apply provider filter on backend results
+      if (providerFilter !== "all") {
+        resultSessions = resultSessions.filter(
+          (s) => s.providerId === providerFilter,
+        );
+      }
+      return resultSessions;
+    }
+    // Otherwise use frontend search
     return searchSessions(search);
-  }, [searchSessions, search]);
+  }, [isAdvancedSearch, backendSearchResult, searchSessions, search, providerFilter]);
 
   useEffect(() => {
     if (filteredSessions.length === 0) {
@@ -194,39 +219,18 @@ export function SessionManagerPage({ appId }: { appId: string }) {
             <Card className="flex flex-col overflow-hidden">
               <CardHeader className="py-2 px-3 border-b">
                 {isSearchOpen ? (
-                  <div className="relative flex-1">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-                    <Input
-                      ref={searchInputRef}
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder={t("sessionManager.searchPlaceholder")}
-                      className="h-8 pl-8 pr-8 text-sm"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                          setIsSearchOpen(false);
-                          setSearch("");
-                        }
-                      }}
-                      onBlur={() => {
-                        if (search.trim() === "") {
-                          setIsSearchOpen(false);
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 size-6"
-                      onClick={() => {
-                        setIsSearchOpen(false);
-                        setSearch("");
-                      }}
-                    >
-                      <X className="size-3" />
-                    </Button>
-                  </div>
+                  <SessionSearchBar
+                    onSearch={(query: SessionSearchQuery) => {
+                      setIsAdvancedSearch(true);
+                      searchBackend(query);
+                    }}
+                    onClose={() => {
+                      setIsSearchOpen(false);
+                      setIsAdvancedSearch(false);
+                      setSearch("");
+                      resetBackendSearch();
+                    }}
+                  />
                 ) : (
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -368,7 +372,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
               <CardContent className="flex-1 overflow-hidden p-0">
                 <ScrollArea className="h-full">
                   <div className="p-2">
-                    {isLoading ? (
+                    {isLoading || isBackendSearching ? (
                       <div className="flex items-center justify-center py-12">
                         <RefreshCw className="size-5 animate-spin text-muted-foreground" />
                       </div>
@@ -380,21 +384,36 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-1">
-                        {filteredSessions.map((session) => {
-                          const isSelected =
-                            selectedKey !== null &&
-                            getSessionKey(session) === selectedKey;
+                      <div className="space-y-4">
+                        {groupSessionsByDate(filteredSessions, t).map((group) => (
+                          <div key={group.label}>
+                            <div className="flex items-center gap-2 mb-2 px-1">
+                              <Calendar className="size-3.5 text-muted-foreground" />
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {group.label}
+                              </span>
+                              <Badge variant="secondary" className="text-xs h-5">
+                                {group.sessions.length}
+                              </Badge>
+                            </div>
+                            <div className="space-y-1">
+                              {group.sessions.map((session) => {
+                                const isSelected =
+                                  selectedKey !== null &&
+                                  getSessionKey(session) === selectedKey;
 
-                          return (
-                            <SessionItem
-                              key={getSessionKey(session)}
-                              session={session}
-                              isSelected={isSelected}
-                              onSelect={setSelectedKey}
-                            />
-                          );
-                        })}
+                                return (
+                                  <SessionItem
+                                    key={getSessionKey(session)}
+                                    session={session}
+                                    isSelected={isSelected}
+                                    onSelect={setSelectedKey}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

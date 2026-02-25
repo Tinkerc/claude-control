@@ -57,3 +57,16 @@ pub async fn launch_session_terminal(
 
     Ok(true)
 }
+
+/// Phase 2: Enhanced Search - Search sessions by files, commands, tools
+#[tauri::command]
+pub async fn search_sessions(
+    query: session_manager::SessionSearchQuery,
+) -> Result<session_manager::SessionSearchResult, String> {
+    let query = query.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(session_manager::search_sessions(&query))
+    })
+    .await
+    .map_err(|e| format!("Failed to search sessions: {e}"))?
+}

@@ -160,6 +160,7 @@ fn parse_session(storage: &Path, path: &Path) -> Option<SessionMeta> {
         last_active_at: updated_at.or(created_at),
         source_path: Some(source_path),
         resume_command: Some(format!("opencode session resume {session_id}")),
+        stats: None,
     })
 }
 

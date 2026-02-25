@@ -35,6 +35,84 @@ export const formatRelativeTime = (
   return new Date(value).toLocaleDateString();
 };
 
+/**
+ * Group sessions by date for timeline view
+ */
+export interface GroupedSessions {
+  label: string;
+  date: Date;
+  sessions: SessionMeta[];
+}
+
+export const groupSessionsByDate = (
+  sessions: SessionMeta[],
+  t: (key: string) => string,
+): GroupedSessions[] => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const lastWeek = new Date(today);
+  lastWeek.setDate(lastWeek.getDate() - 7);
+
+  const groups = new Map<string, GroupedSessions>();
+
+  for (const session of sessions) {
+    const ts = session.lastActiveAt ?? session.createdAt ?? 0;
+    if (!ts) continue;
+
+    const sessionDate = new Date(ts);
+    const sessionDay = new Date(
+      sessionDate.getFullYear(),
+      sessionDate.getMonth(),
+      sessionDate.getDate(),
+    );
+
+    let label: string;
+
+    if (sessionDay.getTime() >= today.getTime()) {
+      label = t("sessionManager.today");
+    } else if (sessionDay.getTime() >= yesterday.getTime()) {
+      label = t("sessionManager.yesterday");
+    } else if (sessionDay.getTime() >= lastWeek.getTime()) {
+      // This week - use day name
+      label = sessionDate.toLocaleDateString(undefined, { weekday: "long" });
+    } else {
+      // Older - use date format
+      label = sessionDate.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    }
+
+    if (!groups.has(label)) {
+      groups.set(label, {
+        label,
+        date: sessionDay,
+        sessions: [],
+      });
+    }
+    groups.get(label)!.sessions.push(session);
+  }
+
+  // Sort groups by date (newest first)
+  const result = Array.from(groups.values()).sort((a, b) => {
+    return b.date.getTime() - a.date.getTime();
+  });
+
+  // Sort sessions within each group by timestamp
+  for (const group of result) {
+    group.sessions.sort((a, b) => {
+      const aTs = a.lastActiveAt ?? a.createdAt ?? 0;
+      const bTs = b.lastActiveAt ?? b.createdAt ?? 0;
+      return bTs - aTs;
+    });
+  }
+
+  return result;
+};
+
 export const getProviderLabel = (
   providerId: string,
   t: (key: string) => string,

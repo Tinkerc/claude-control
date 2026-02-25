@@ -1,6 +1,25 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { SessionMessage, SessionMeta } from "@/types";
 
+export interface SessionSearchQuery {
+  keyword?: string;
+  files?: string;
+  commands?: string;
+  tools?: string;
+  project?: string;
+  provider?: string;
+  startTime?: number;
+  endTime?: number;
+}
+
+export interface SessionSearchResult {
+  sessions: SessionMeta[];
+  total: number;
+  matchedFiles?: string[];
+  matchedCommands?: string[];
+  matchedTools?: string[];
+}
+
 export const sessionsApi = {
   async list(): Promise<SessionMeta[]> {
     return await invoke("list_sessions");
@@ -24,5 +43,9 @@ export const sessionsApi = {
       cwd,
       customConfig,
     });
+  },
+
+  async search(query: SessionSearchQuery): Promise<SessionSearchResult> {
+    return await invoke("search_sessions", { query });
   },
 };
