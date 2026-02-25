@@ -241,7 +241,9 @@ fn launch_custom(
 fn build_shell_command(command: &str, cwd: Option<&str>) -> String {
     match cwd {
         Some(dir) if !dir.trim().is_empty() => {
-            format!("cd {} && {}", shell_escape(dir), command)
+            // First cd to directory, then execute command
+            // Use semicolon to ensure command runs even if cd has issues
+            format!("cd {} ; {}", shell_escape(dir), command)
         }
         _ => command.to_string(),
     }

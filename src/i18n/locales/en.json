@@ -576,7 +576,7 @@
     "terminalTargetCopy": "Copy only",
     "terminalLaunched": "Terminal launched",
     "openFailed": "Failed to launch terminal",
-    "resumeFallbackCopied": "Resume command copied for manual use",
+    "resumeFallbackCopied": "Full resume command (with cd) copied for manual execution",
     "copyProjectDir": "Copy directory",
     "projectDirCopied": "Directory copied",
     "copySourcePath": "Copy source file",
@@ -597,7 +597,8 @@
     "sessionDuration": "Session duration",
     "messageCount": "{{count}} messages",
     "filesModified": "{{count}} files modified",
-    "commandsExecuted": "{{count}} commands executed"
+    "commandsExecuted": "{{count}} commands executed",
+    "willCdTo": "Will cd to:"
   },
   "console": {
     "providerSwitchReceived": "Received provider switch event:",

@@ -189,10 +189,11 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     if (!selectedSession?.resumeCommand) return;
 
     if (!isMac()) {
-      await handleCopy(
-        selectedSession.resumeCommand,
-        t("sessionManager.resumeCommandCopied"),
-      );
+      // Non-macOS: copy full command with cd
+      const fullCommand = selectedSession.projectDir
+        ? `cd "${selectedSession.projectDir}" && ${selectedSession.resumeCommand}`
+        : selectedSession.resumeCommand;
+      await handleCopy(fullCommand, t("sessionManager.resumeCommandCopied"));
       return;
     }
 
@@ -203,10 +204,24 @@ export function SessionManagerPage({ appId }: { appId: string }) {
       });
       toast.success(t("sessionManager.terminalLaunched"));
     } catch (error) {
-      const fallback = selectedSession.resumeCommand;
-      await handleCopy(fallback, t("sessionManager.resumeFallbackCopied"));
+      // Fallback: copy full command with cd for manual execution
+      const fullCommand = selectedSession.projectDir
+        ? `cd "${selectedSession.projectDir}" && ${selectedSession.resumeCommand}`
+        : selectedSession.resumeCommand;
+      await handleCopy(fullCommand, t("sessionManager.resumeFallbackCopied"));
       toast.error(extractErrorMessage(error) || t("sessionManager.openFailed"));
     }
+  };
+
+  const handleCopyResumeCommand = async () => {
+    if (!selectedSession?.resumeCommand) return;
+    
+    // Copy full command including cd to project directory
+    const fullCommand = selectedSession.projectDir
+      ? `cd "${selectedSession.projectDir}" && ${selectedSession.resumeCommand}`
+      : selectedSession.resumeCommand;
+    
+    await handleCopy(fullCommand, t("sessionManager.resumeCommandCopied"));
   };
 
   return (
@@ -541,32 +556,40 @@ export function SessionManagerPage({ appId }: { appId: string }) {
 
                     {/* 恢复命令预览 */}
                     {selectedSession.resumeCommand && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <div className="flex-1 rounded-md bg-muted/60 px-3 py-1.5 font-mono text-xs text-muted-foreground truncate">
-                          {selectedSession.resumeCommand}
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 rounded-md bg-muted/60 px-3 py-1.5 font-mono text-xs text-muted-foreground truncate">
+                            {selectedSession.projectDir
+                              ? `cd "${selectedSession.projectDir}" && ${selectedSession.resumeCommand}`
+                              : selectedSession.resumeCommand}
+                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7 shrink-0"
+                                onClick={handleCopyResumeCommand}
+                              >
+                                <Copy className="size-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t("sessionManager.copyCommand", {
+                                defaultValue: "复制命令",
+                              })}
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7 shrink-0"
-                              onClick={() =>
-                                void handleCopy(
-                                  selectedSession.resumeCommand!,
-                                  t("sessionManager.resumeCommandCopied"),
-                                )
-                              }
-                            >
-                              <Copy className="size-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("sessionManager.copyCommand", {
-                              defaultValue: "复制命令",
+                        {selectedSession.projectDir && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <FolderOpen className="size-3" />
+                            {t("sessionManager.willCdTo", {
+                              defaultValue: "将切换到目录：",
                             })}
-                          </TooltipContent>
-                        </Tooltip>
+                            <span className="font-mono">{getBaseName(selectedSession.projectDir)}</span>
+                          </p>
+                        )}
                       </div>
                     )}
                   </CardHeader>

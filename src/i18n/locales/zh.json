@@ -576,7 +576,7 @@
     "terminalTargetCopy": "仅复制",
     "terminalLaunched": "终端已启动",
     "openFailed": "终端启动失败",
-    "resumeFallbackCopied": "已复制恢复命令，可手动粘贴到终端",
+    "resumeFallbackCopied": "完整恢复命令（含 cd）已复制，可手动粘贴执行",
     "copyProjectDir": "复制目录",
     "projectDirCopied": "目录已复制",
     "copySourcePath": "复制原始文件",
@@ -597,7 +597,8 @@
     "sessionDuration": "会话时长",
     "messageCount": "{{count}} 条消息",
     "filesModified": "{{count}} 个文件修改",
-    "commandsExecuted": "{{count}} 个命令执行"
+    "commandsExecuted": "{{count}} 个命令执行",
+    "willCdTo": "将切换到目录："
   },
   "console": {
     "providerSwitchReceived": "收到供应商切换事件:",

@@ -576,7 +576,7 @@
     "terminalTargetCopy": "コピーのみ",
     "terminalLaunched": "ターミナルを起動しました",
     "openFailed": "ターミナルの起動に失敗しました",
-    "resumeFallbackCopied": "再開コマンドをコピーしました（手動で実行してください）",
+    "resumeFallbackCopied": "完全な再開コマンド（cd 付き）をコピーしました（手動で実行してください）",
     "copyProjectDir": "ディレクトリをコピー",
     "projectDirCopied": "ディレクトリをコピーしました",
     "copySourcePath": "元ファイルをコピー",
@@ -597,7 +597,8 @@
     "sessionDuration": "セッション時間",
     "messageCount": "{{count}}件のメッセージ",
     "filesModified": "{{count}}個のファイルを変更",
-    "commandsExecuted": "{{count}}個のコマンドを実行"
+    "commandsExecuted": "{{count}}個のコマンドを実行",
+    "willCdTo": "移動先："
   },
   "console": {
     "providerSwitchReceived": "プロバイダー切り替えイベントを受信:",
