@@ -1,3 +1,4 @@
+pub mod analysis;
 pub mod config;
 pub mod env_checker;
 pub mod env_manager;
@@ -14,6 +15,10 @@ pub mod webdav;
 pub mod webdav_auto_sync;
 pub mod webdav_sync;
 
+pub use analysis::{
+    AllInsights, ProjectStats, WorkflowPatterns, ContentAnalysis, SimilarSession,
+    CommandFrequency, FileFrequency, ToolFrequency,
+};
 pub use config::ConfigService;
 pub use mcp::McpService;
 pub use omo::OmoService;

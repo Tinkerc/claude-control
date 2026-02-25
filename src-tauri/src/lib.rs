@@ -1004,6 +1004,12 @@ pub fn run() {
             commands::launch_session_terminal,
             commands::search_sessions,
             commands::get_tool_versions,
+            // Session insights
+            commands::get_project_stats,
+            commands::get_workflow_patterns,
+            commands::get_content_analysis,
+            commands::find_similar_sessions,
+            commands::get_all_insights,
             // Provider terminal
             commands::open_provider_terminal,
             // Universal Provider management

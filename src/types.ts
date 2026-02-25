@@ -551,3 +551,107 @@ export interface OpenClawToolsConfig {
   deny?: string[];
   [key: string]: unknown; // preserve unknown fields
 }
+
+// ============================================================================
+// Session Insights & Pattern Detection (v3.13.0+)
+// ============================================================================
+
+// Command frequency for project stats
+export interface CommandFrequency {
+  command: string;
+  count: number;
+}
+
+// File frequency for project stats
+export interface FileFrequency {
+  file: string;
+  editCount: number;
+}
+
+// Tool frequency for project stats
+export interface ToolFrequency {
+  tool: string;
+  usageCount: number;
+}
+
+// Project statistics
+export interface ProjectStats {
+  projectDir: string;
+  sessionCount: number;
+  totalDurationMinutes: number;
+  topCommands: CommandFrequency[];
+  topFiles: FileFrequency[];
+  topTools: ToolFrequency[];
+  avgSessionDuration: number;
+}
+
+// Command sequence pattern
+export interface CommandSequence {
+  sequence: string;
+  occurrenceCount: number;
+  exampleSessionId: string;
+}
+
+// Sequence pattern
+export interface SequencePattern {
+  pattern: string;
+  occurrenceCount: number;
+  exampleSessionId: string;
+}
+
+// Length distribution
+export interface LengthDistribution {
+  range: string;
+  count: number;
+}
+
+// Workflow patterns
+export interface WorkflowPatterns {
+  commandSequences: CommandSequence[];
+  toolSequences: SequencePattern[];
+  toolUsageDistribution: ToolFrequency[];
+  sessionLengthDistribution: LengthDistribution[];
+  mostCommonSequences: string[];
+}
+
+// Task category
+export interface TaskCategory {
+  category: string;
+  count: number;
+}
+
+// Concept entry
+export interface ConceptEntry {
+  concept: string;
+  mentions: number;
+}
+
+// Prompt pattern
+export interface PromptPattern {
+  pattern: string;
+  occurrenceCount: number;
+  exampleUsage?: string;
+}
+
+// Content analysis
+export interface ContentAnalysis {
+  taskClassification: TaskCategory[];
+  concepts: ConceptEntry[];
+  promptPatterns: PromptPattern[];
+  totalSessionsAnalyzed: number;
+}
+
+// Similar session
+export interface SimilarSession {
+  sessionId: string;
+  similarityScore: number;
+  similarityReason: string;
+}
+
+// All insights combined
+export interface AllInsights {
+  projectStats: ProjectStats[];
+  workflowPatterns: WorkflowPatterns;
+  contentAnalysis: ContentAnalysis;
+  totalSessionsAnalyzed: number;
+}
