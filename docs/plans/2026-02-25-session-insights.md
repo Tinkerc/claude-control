@@ -6,7 +6,15 @@
 
 **Architecture:** Rule-based analysis engine in Rust (backend) + React components (frontend) that aggregates session data to detect patterns in commands, files, tools, and content. No new database tables - uses existing session data with in-memory analysis.
 
-**Tech Stack:** Rust (Tauri), TypeScript (React), SQLite (existing), serde (serialization)
+**Data Source:** Uses `session_manager::scan_sessions()` which returns `Vec<SessionMeta>` with provider-scanned session data.
+
+**Tech Stack:** Rust (Tauri), TypeScript (React), serde (serialization)
+
+**Key Type Mappings (Actual Codebase):**
+- `SessionMeta.session_id` (not `id`)
+- `SessionMeta.project_dir: Option<String>` (not `project_path`)
+- `SessionStats.duration_minutes: Option<u64>` (not `i64`)
+- `SessionMeta.provider_id` (additional field for provider identification)
 
 ---
 
@@ -114,25 +122,30 @@ mod tests {
         project: &str,
         commands: Vec<&str>,
         files: Vec<&str>,
-        duration: i64,
+        duration: u64,
     ) -> SessionMeta {
         SessionMeta {
-            id: "test-id".to_string(),
-            project_path: project.to_string(),
+            provider_id: "claude".to_string(),
+            session_id: "test-id".to_string(),
+            project_dir: Some(project.to_string()),
             stats: Some(SessionStats {
-                commands_executed: commands.into_iter().map(String::from).collect(),
-                files_modified: files.into_iter().map(String::from).collect(),
-                duration_minutes: duration,
-                tools_used: vec!["Write".to_string(), "Read".to_string()],
-                message_count: 10,
-                user_message_count: 5,
-                assistant_message_count: 5,
+                commands_executed: Some(commands.into_iter().map(String::from).collect()),
+                files_modified: Some(files.into_iter().map(String::from).collect()),
+                duration_minutes: Some(duration),
+                tools_used: Some(vec!["Write".to_string(), "Read".to_string()]),
+                message_count: Some(10),
+                user_message_count: Some(5),
+                assistant_message_count: Some(5),
                 token_usage: None,
                 model: None,
                 topic: None,
             }),
-            created_at: chrono::Utc::now(),
-            last_active_at: chrono::Utc::now(),
+            created_at: Some(chrono::Utc::now().timestamp_millis()),
+            last_active_at: Some(chrono::Utc::now().timestamp_millis()),
+            title: None,
+            summary: None,
+            source_path: None,
+            resume_command: None,
         }
     }
 
@@ -147,9 +160,9 @@ mod tests {
         let result = ProjectAnalyzer::analyze_by_project(&sessions);
 
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].project_path, "/proj/a");
+        assert_eq!(result[0].project_dir, "/proj/a");
         assert_eq!(result[0].session_count, 2);
-        assert_eq!(result[1].project_path, "/proj/b");
+        assert_eq!(result[1].project_dir, "/proj/b");
         assert_eq!(result[1].session_count, 1);
     }
 
@@ -178,11 +191,16 @@ mod tests {
     #[test]
     fn test_session_without_stats() {
         let sessions = vec![SessionMeta {
-            id: "test".to_string(),
-            project_path: "/proj".to_string(),
+            provider_id: "claude".to_string(),
+            session_id: "test".to_string(),
+            project_dir: Some("/proj".to_string()),
             stats: None,
-            created_at: chrono::Utc::now(),
-            last_active_at: chrono::Utc::now(),
+            created_at: Some(chrono::Utc::now().timestamp_millis()),
+            last_active_at: Some(chrono::Utc::now().timestamp_millis()),
+            title: None,
+            summary: None,
+            source_path: None,
+            resume_command: None,
         }];
 
         let result = ProjectAnalyzer::analyze_by_project(&sessions);
@@ -216,8 +234,9 @@ impl ProjectAnalyzer {
 
         // Group by project
         for session in sessions {
+            let project_path = session.project_dir.clone().unwrap_or_else(|| "unknown".to_string());
             project_map
-                .entry(session.project_path.clone())
+                .entry(project_path)
                 .or_default()
                 .push(session);
         }
@@ -233,20 +252,26 @@ impl ProjectAnalyzer {
         let mut cmd_counts: HashMap<String, usize> = HashMap::new();
         let mut file_counts: HashMap<String, usize> = HashMap::new();
         let mut tool_counts: HashMap<String, usize> = HashMap::new();
-        let mut total_duration = 0i64;
+        let mut total_duration = 0u64;
 
         for session in sessions {
             if let Some(stats) = &session.stats {
-                total_duration += stats.duration_minutes;
+                total_duration += stats.duration_minutes.unwrap_or(0);
 
-                for cmd in &stats.commands_executed {
-                    *cmd_counts.entry(cmd.clone()).or_insert(0) += 1;
+                if let Some(cmds) = &stats.commands_executed {
+                    for cmd in cmds {
+                        *cmd_counts.entry(cmd.clone()).or_insert(0) += 1;
+                    }
                 }
-                for file in &stats.files_modified {
-                    *file_counts.entry(file.clone()).or_insert(0) += 1;
+                if let Some(files) = &stats.files_modified {
+                    for file in files {
+                        *file_counts.entry(file.clone()).or_insert(0) += 1;
+                    }
                 }
-                for tool in &stats.tools_used {
-                    *tool_counts.entry(tool.clone()).or_insert(0) += 1;
+                if let Some(tools) = &stats.tools_used {
+                    for tool in tools {
+                        *tool_counts.entry(tool.clone()).or_insert(0) += 1;
+                    }
                 }
             }
         }
@@ -256,9 +281,9 @@ impl ProjectAnalyzer {
         let total_tools: usize = tool_counts.values().sum();
 
         ProjectStats {
-            project_path: path.to_string(),
+            project_dir: path.to_string(),
             session_count: sessions.len(),
-            total_duration_minutes: total_duration,
+            total_duration_minutes: total_duration as i64,
             top_commands: Self::top_n(cmd_counts, total_cmds, 10),
             top_files: Self::top_n(file_counts, total_files, 10),
             top_tools: Self::top_n(tool_counts, total_tools, 10),
@@ -292,7 +317,7 @@ impl ProjectAnalyzer {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ProjectStats {
-    pub project_path: String,
+    pub project_dir: String,
     pub session_count: usize,
     pub total_duration_minutes: i64,
     pub top_commands: Vec<CommandFrequency>,
@@ -407,15 +432,21 @@ mod tests {
         tools: Vec<&str>,
     ) -> SessionMeta {
         SessionMeta {
-            id: "test-id".to_string(),
-            project_path: "/proj".to_string(),
+            provider_id: "claude".to_string(),
+            session_id: "test-id".to_string(),
+            project_dir: Some("/proj".to_string()),
             stats: Some(SessionStats {
-                commands_executed: commands.into_iter().map(String::from).collect(),
-                tools_used: tools.into_iter().map(String::from).collect(),
-                duration_minutes: 10,
+                commands_executed: Some(commands.into_iter().map(String::from).collect()),
+                tools_used: Some(tools.into_iter().map(String::from).collect()),
+                duration_minutes: Some(10),
                 ..Default::default()
             }),
-            ..Default::default()
+            created_at: Some(chrono::Utc::now().timestamp_millis()),
+            last_active_at: Some(chrono::Utc::now().timestamp_millis()),
+            title: None,
+            summary: None,
+            source_path: None,
+            resume_command: None,
         }
     }
 
@@ -484,12 +515,13 @@ impl WorkflowAnalyzer {
 
         for session in sessions {
             if let Some(stats) = &session.stats {
-                let cmds = &stats.commands_executed;
-                // Extract sequences of 2-3 commands
-                for window in cmds.windows(2).chain(cmds.windows(3)) {
-                    let seq: Vec<String> = window.to_vec();
-                    *sequence_counts.entry(seq.clone()).or_insert(0) += 1;
-                    session_examples.entry(seq).or_insert_with(|| session.id.clone());
+                if let Some(cmds) = &stats.commands_executed {
+                    // Extract sequences of 2-3 commands
+                    for window in cmds.windows(2).chain(cmds.windows(3)) {
+                        let seq: Vec<String> = window.to_vec();
+                        *sequence_counts.entry(seq.clone()).or_insert(0) += 1;
+                        session_examples.entry(seq).or_insert_with(|| session.session_id.clone());
+                    }
                 }
             }
         }
@@ -511,9 +543,10 @@ impl WorkflowAnalyzer {
 
         for session in sessions {
             if let Some(stats) = &session.stats {
-                let tools = &stats.tools_used;
-                for window in tools.windows(2).chain(tools.windows(3)) {
-                    *flow_counts.entry(window.to_vec()).or_insert(0) += 1;
+                if let Some(tools) = &stats.tools_used {
+                    for window in tools.windows(2).chain(tools.windows(3)) {
+                        *flow_counts.entry(window.to_vec()).or_insert(0) += 1;
+                    }
                 }
             }
         }
@@ -535,9 +568,11 @@ impl WorkflowAnalyzer {
 
         for session in sessions {
             if let Some(stats) = &session.stats {
-                for tool in &stats.tools_used {
-                    *tool_counts.entry(tool.clone()).or_insert(0) += 1;
-                    total += 1;
+                if let Some(tools) = &stats.tools_used {
+                    for tool in tools {
+                        *tool_counts.entry(tool.clone()).or_insert(0) += 1;
+                        total += 1;
+                    }
                 }
             }
         }
@@ -566,7 +601,7 @@ impl WorkflowAnalyzer {
 
         for session in sessions {
             let duration = session.stats.as_ref()
-                .map(|s| s.duration_minutes)
+                .and_then(|s| s.duration_minutes)
                 .unwrap_or(0);
 
             if duration < 10 {
@@ -655,13 +690,19 @@ mod tests {
 
     fn create_session_with_topic(topic: &str) -> SessionMeta {
         SessionMeta {
-            id: "test".to_string(),
-            project_path: "/proj".to_string(),
+            provider_id: "claude".to_string(),
+            session_id: "test".to_string(),
+            project_dir: Some("/proj".to_string()),
             stats: Some(SessionStats {
                 topic: Some(topic.to_string()),
                 ..Default::default()
             }),
-            ..Default::default()
+            created_at: Some(chrono::Utc::now().timestamp_millis()),
+            last_active_at: Some(chrono::Utc::now().timestamp_millis()),
+            title: None,
+            summary: None,
+            source_path: None,
+            resume_command: None,
         }
     }
 
@@ -894,15 +935,21 @@ mod tests {
         topic: &str,
     ) -> SessionMeta {
         SessionMeta {
-            id: format!("id-{}", project),
-            project_path: project.to_string(),
+            provider_id: "claude".to_string(),
+            session_id: format!("id-{}", project),
+            project_dir: Some(project.to_string()),
             stats: Some(SessionStats {
-                commands_executed: commands.into_iter().map(String::from).collect(),
-                files_modified: files.into_iter().map(String::from).collect(),
+                commands_executed: Some(commands.into_iter().map(String::from).collect()),
+                files_modified: Some(files.into_iter().map(String::from).collect()),
                 topic: Some(topic.to_string()),
                 ..Default::default()
             }),
-            ..Default::default()
+            created_at: Some(chrono::Utc::now().timestamp_millis()),
+            last_active_at: Some(chrono::Utc::now().timestamp_millis()),
+            title: None,
+            summary: None,
+            source_path: None,
+            resume_command: None,
         }
     }
 
@@ -916,7 +963,7 @@ mod tests {
 
         assert_eq!(similar.len(), 2);
         // Same project should rank higher
-        assert_eq!(similar[0].session_id, session_b.id);
+        assert_eq!(similar[0].session_id, session_b.session_id);
         assert!(similar[0].similarity_score > 0.3);
     }
 
@@ -928,7 +975,7 @@ mod tests {
 
         let similar = SimilarityFinder::find_similar(&session_a, &[session_b, session_c], 10);
 
-        assert_eq!(similar[0].session_id, session_b.id);
+        assert_eq!(similar[0].session_id, session_b.session_id);
         assert!(similar[0].similarity_reason.contains("shared files"));
     }
 }
@@ -960,7 +1007,7 @@ impl SimilarityFinder {
         let mut scored: Vec<(SimilarSession, f64)> = Vec::new();
 
         for session in all_sessions {
-            if session.id == target.id {
+            if session.session_id == target.session_id {
                 continue;
             }
 
@@ -968,7 +1015,7 @@ impl SimilarityFinder {
             if score > 0.3 {
                 scored.push((
                     SimilarSession {
-                        session_id: session.id.clone(),
+                        session_id: session.session_id.clone(),
                         similarity_score: score,
                         similarity_reason: reason,
                         session: session.clone(),
@@ -993,21 +1040,24 @@ impl SimilarityFinder {
         let mut reasons = Vec::new();
 
         // Same project?
-        if a.project_path == b.project_path {
+        if a.project_dir == b.project_dir {
             score += 0.3;
             reasons.push("same project".to_string());
         }
 
         // Overlapping files?
         if let (Some(a_stats), Some(b_stats)) = (&a.stats, &b.stats) {
-            let overlap: HashSet<_> = a_stats.files_modified
+            let a_files = a_stats.files_modified.as_ref().unwrap_or(&vec![]);
+            let b_files = b_stats.files_modified.as_ref().unwrap_or(&vec![]);
+
+            let overlap: HashSet<_> = a_files
                 .iter()
-                .filter(|f| b_stats.files_modified.contains(f))
+                .filter(|f| b_files.contains(f))
                 .collect();
 
             if !overlap.is_empty() {
                 let overlap_ratio = overlap.len() as f64 /
-                    a_stats.files_modified.len().max(1) as f64;
+                    a_files.len().max(1) as f64;
                 score += overlap_ratio * 0.4;
                 reasons.push(format!("{} shared files", overlap.len()));
             }
@@ -1021,14 +1071,17 @@ impl SimilarityFinder {
             }
 
             // Similar commands?
-            let cmd_overlap: HashSet<_> = a_stats.commands_executed
+            let a_cmds = a_stats.commands_executed.as_ref().unwrap_or(&vec![]);
+            let b_cmds = b_stats.commands_executed.as_ref().unwrap_or(&vec![]);
+
+            let cmd_overlap: HashSet<_> = a_cmds
                 .iter()
-                .filter(|c| b_stats.commands_executed.contains(c))
+                .filter(|c| b_cmds.contains(c))
                 .collect();
 
             if !cmd_overlap.is_empty() {
                 let cmd_ratio = cmd_overlap.len() as f64 /
-                    a_stats.commands_executed.len().max(1) as f64;
+                    a_cmds.len().max(1) as f64;
                 score += cmd_ratio * 0.1;
                 reasons.push(format!("{} shared commands", cmd_overlap.len()));
             }
@@ -1092,25 +1145,23 @@ git commit -m "feat(analysis): implement SimilarityFinder for session matching"
 ```rust
 // src-tauri/src/commands/insights.rs
 
-use crate::services::{
-    analysis::{ProjectAnalyzer, WorkflowAnalyzer, ContentAnalyzer, SimilarityFinder},
-    session_service::SessionService,
+use crate::services::analysis::{
+    ProjectAnalyzer, WorkflowAnalyzer, ContentAnalyzer, SimilarityFinder,
 };
-use tauri::State;
+use crate::session_manager;
 
 /// Get project statistics for all or specific project
 #[tauri::command]
 pub async fn get_project_stats(
-    project_path: Option<String>,
-    session_service: State<'_, SessionService>,
-) -> Result<Vec<ProjectStats>, String> {
-    let sessions = session_service.get_all_sessions()
+    project_dir: Option<String>,
+) -> Result<Vec<crate::services::analysis::ProjectStats>, String> {
+    let sessions = tauri::async_runtime::spawn_blocking(session_manager::scan_sessions)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to scan sessions: {e}"))?;
 
-    let filtered = if let Some(path) = project_path {
+    let filtered = if let Some(path) = project_dir {
         sessions.into_iter()
-            .filter(|s| s.project_path == path)
+            .filter(|s| s.project_dir.as_ref().map(|p| p == &path).unwrap_or(false))
             .collect()
     } else {
         sessions
@@ -1122,16 +1173,15 @@ pub async fn get_project_stats(
 /// Get workflow patterns for all or specific project
 #[tauri::command]
 pub async fn get_workflow_patterns(
-    project_path: Option<String>,
-    session_service: State<'_, SessionService>,
-) -> Result<WorkflowPatterns, String> {
-    let sessions = session_service.get_all_sessions()
+    project_dir: Option<String>,
+) -> Result<crate::services::analysis::WorkflowPatterns, String> {
+    let sessions = tauri::async_runtime::spawn_blocking(session_manager::scan_sessions)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to scan sessions: {e}"))?;
 
-    let filtered = if let Some(path) = project_path {
+    let filtered = if let Some(path) = project_dir {
         sessions.into_iter()
-            .filter(|s| s.project_path == path)
+            .filter(|s| s.project_dir.as_ref().map(|p| p == &path).unwrap_or(false))
             .collect()
     } else {
         sessions
@@ -1143,16 +1193,15 @@ pub async fn get_workflow_patterns(
 /// Get content analysis for all or specific project
 #[tauri::command]
 pub async fn get_content_analysis(
-    project_path: Option<String>,
-    session_service: State<'_, SessionService>,
-) -> Result<ContentAnalysis, String> {
-    let sessions = session_service.get_all_sessions()
+    project_dir: Option<String>,
+) -> Result<crate::services::analysis::ContentAnalysis, String> {
+    let sessions = tauri::async_runtime::spawn_blocking(session_manager::scan_sessions)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to scan sessions: {e}"))?;
 
-    let filtered = if let Some(path) = project_path {
+    let filtered = if let Some(path) = project_dir {
         sessions.into_iter()
-            .filter(|s| s.project_path == path)
+            .filter(|s| s.project_dir.as_ref().map(|p| p == &path).unwrap_or(false))
             .collect()
     } else {
         sessions
@@ -1166,14 +1215,13 @@ pub async fn get_content_analysis(
 pub async fn find_similar_sessions(
     session_id: String,
     limit: Option<usize>,
-    session_service: State<'_, SessionService>,
-) -> Result<Vec<SimilarSession>, String> {
-    let sessions = session_service.get_all_sessions()
+) -> Result<Vec<crate::services::analysis::SimilarSession>, String> {
+    let sessions = tauri::async_runtime::spawn_blocking(session_manager::scan_sessions)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to scan sessions: {e}"))?;
 
     let target = sessions.iter()
-        .find(|s| s.id == session_id)
+        .find(|s| s.session_id == session_id)
         .ok_or_else(|| "Session not found".to_string())?;
 
     Ok(SimilarityFinder::find_similar(target, &sessions, limit.unwrap_or(5)))
@@ -1182,20 +1230,19 @@ pub async fn find_similar_sessions(
 /// Get all insights combined
 #[tauri::command]
 pub async fn get_all_insights(
-    project_path: Option<String>,
-    session_service: State<'_, SessionService>,
-) -> Result<AllInsights, String> {
-    let sessions = session_service.get_all_sessions()
+    project_dir: Option<String>,
+) -> Result<crate::services::analysis::AllInsights, String> {
+    let sessions = tauri::async_runtime::spawn_blocking(session_manager::scan_sessions)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to scan sessions: {e}"))?;
 
     if sessions.is_empty() {
         return Err("No sessions available for analysis".to_string());
     }
 
-    let filtered = if let Some(path) = project_path {
+    let filtered = if let Some(path) = project_dir {
         sessions.into_iter()
-            .filter(|s| s.project_path == path)
+            .filter(|s| s.project_dir.as_ref().map(|p| p == &path).unwrap_or(false))
             .collect()
     } else {
         sessions
@@ -1203,7 +1250,7 @@ pub async fn get_all_insights(
 
     let total = filtered.len();
 
-    Ok(AllInsights {
+    Ok(crate::services::analysis::AllInsights {
         project_stats: ProjectAnalyzer::analyze_by_project(&filtered),
         workflow_patterns: WorkflowAnalyzer::detect_patterns(&filtered),
         content_analysis: ContentAnalyzer::analyze(&filtered),
@@ -1265,7 +1312,7 @@ git commit -m "feat(commands): add insights Tauri commands"
 
 // Project Statistics
 export interface ProjectStats {
-  project_path: string;
+  project_dir: string;
   session_count: number;
   total_duration_minutes: number;
   top_commands: CommandFrequency[];
@@ -1413,7 +1460,7 @@ export function InsightsTab() {
   useEffect(() => {
     if (state.data) {
       const uniqueProjects = Array.from(
-        new Set(state.data.project_stats.map(p => p.project_path))
+        new Set(state.data.project_stats.map(p => p.project_dir))
       );
       setProjects(uniqueProjects);
     }
@@ -1424,7 +1471,7 @@ export function InsightsTab() {
 
     try {
       const data = await invoke<AllInsights>('get_all_insights', {
-        projectPath: selectedProject,
+        projectDir: selectedProject,
       });
 
       if (data.total_sessions_analyzed === 0) {
@@ -1701,8 +1748,8 @@ export function ProjectStatsPanel({ stats }: ProjectStatsPanelProps) {
   return (
     <div className="project-stats-panel">
       {stats.map((project) => (
-        <div key={project.project_path} className="project-card">
-          <h3>{formatProjectName(project.project_path)}</h3>
+        <div key={project.project_dir} className="project-card">
+          <h3>{formatProjectName(project.project_dir)}</h3>
 
           {/* Summary metrics */}
           <div className="stats-summary">
@@ -2178,7 +2225,7 @@ function OverviewPanel({ insights }: { insights: AllInsights }) {
         <div className="overview-section">
           <h3>{t('insights.mostActiveProject')}</h3>
           <div className="project-highlight">
-            <span className="project-name">{formatProjectName(topProject.project_path)}</span>
+            <span className="project-name">{formatProjectName(topProject.project_dir)}</span>
             <span className="project-stats">
               {topProject.session_count} {t('insights.sessions').toLowerCase()} •
               {formatDuration(topProject.total_duration_minutes)}
